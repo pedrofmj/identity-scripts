@@ -85,9 +85,9 @@ param(
 
   [switch]$ConcurrentSession,
 
-  [string]$SearchIn = "Vault",
-  [ValidateSet("Group","User")]
-  [string]$MemberType = "Group",
+  [string]$SearchIn = "COSTCO",
+  [ValidateSet("group","user")]
+  [string]$memberType = "group",
 
   [ValidateSet("update","skip","fail")]
   [string]$OnConflict = "update",
@@ -472,6 +472,9 @@ function CyberArk-GetMember([string]$baseUrl, [string]$token, [string]$safe, [st
     throw
   }
 }
+# Next line is for debugging purposes and can be removed later
+Write-Log DEBUG ("ADD payload: " + ($addBody | ConvertTo-Json -Depth 20))
+
 
 function CyberArk-AddMember([string]$baseUrl, [string]$token, [string]$safe, [hashtable]$body) {
   $url = ($baseUrl.TrimEnd("/")) + "/PasswordVault/API/Safes/$(Escape-Url $safe)/Members/"
@@ -529,9 +532,9 @@ function New-CurlScript(
 
     $addBody = @{
       memberName  = $newg
-      searchIn    = $searchIn
+      searchIn    = $SearchIn
       permissions = $item.Permissions
-      MemberType  = $memberType
+      memberType  = $memberType
     }
     if ($null -ne $item.MembershipExpirationDate -and $item.MembershipExpirationDate -ne "" -and $item.MembershipExpirationDate -ne 0) {
       $addBody.membershipExpirationDate = $item.MembershipExpirationDate
@@ -589,7 +592,7 @@ function Write-RollbackCsv {
 function New-RollbackPs1 {
   param(
     [string]$SearchIn,
-    [string]$MemberType,
+    [string]$memberType,
     [bool]$IncludeInsecureTls,
     $Steps
   )
@@ -657,7 +660,7 @@ function New-RollbackPs1 {
         memberName  = $mem
         searchIn    = $SearchIn
         permissions = $s.Permissions
-        MemberType  = $MemberType
+        memberType  = $memberType
       }
       if ($null -ne $s.MembershipExpirationDate -and $s.MembershipExpirationDate -ne "" -and $s.MembershipExpirationDate -ne 0) {
         $body.membershipExpirationDate = $s.MembershipExpirationDate
@@ -772,8 +775,17 @@ foreach ($op in $ops) {
       continue
     }
 
-    $permissions = $oldMember.permissions
-    $expiration  = $oldMember.membershipExpirationDate
+$permissions = @{}
+foreach ($p in $oldMember.permissions.PSObject.Properties) {
+  if ($null -ne $p.Value) {
+    $permissions[$p.Name] = $p.Value
+  }
+}
+
+if ($expiration -is [int] -and $expiration -gt 0) {
+  $addBody.membershipExpirationDate = $expiration
+}
+
 
     if ($Loglevel -eq "DEBUG") {
       Write-Log DEBUG ("Captured OLD permissions: env={0} safe={1} old={2} -> {3}" -f $op.Environment, $op.SafeName, $op.OldGroup, (Format-PermissionsSummary $permissions))
@@ -860,7 +872,7 @@ foreach ($op in $ops) {
         memberName  = $op.NewGroup
         searchIn    = $SearchIn
         permissions = $permissions
-        MemberType  = $MemberType
+        memberType  = $memberType
       }
       if ($null -ne $expiration -and $expiration -ne "" -and $expiration -ne 0) {
         $addBody.membershipExpirationDate = $expiration
@@ -902,7 +914,7 @@ foreach ($op in $ops) {
 # Emit curl script (optional)
 if ($EmitCurlScript) {
   $scriptText = New-CurlScript -baseUrl $PVWA -authType $AuthType -username ($(if ([string]::IsNullOrWhiteSpace($Username)) { "<username>" } else { $Username })) `
-    -searchIn $SearchIn -memberType $MemberType -deleteOld ([bool]$DeleteOld) -captured $capturedForCurl
+    -searchIn $SearchIn -memberType $memberType -deleteOld ([bool]$DeleteOld) -captured $capturedForCurl
 
   Set-Content -Path $EmitCurlScript -Value $scriptText -Encoding UTF8
   Write-Log INFO "Wrote curl script: $EmitCurlScript"
@@ -921,7 +933,7 @@ if ($EmitRollback) {
     Write-RollbackCsv -Path $RollbackCsvPath -Steps $rollbackSteps
     Write-Log INFO "Wrote rollback plan (CSV): $RollbackCsvPath"
 
-    $rb = New-RollbackPs1 -SearchIn $SearchIn -MemberType $MemberType -IncludeInsecureTls ([bool]$RollbackInsecureTls) -Steps $rollbackSteps
+    $rb = New-RollbackPs1 -SearchIn $SearchIn -memberType $memberType -IncludeInsecureTls ([bool]$RollbackInsecureTls) -Steps $rollbackSteps
     Set-Content -Path $RollbackPs1Path -Value $rb -Encoding UTF8
     Write-Log INFO "Wrote rollback script (PS1): $RollbackPs1Path"
   }
