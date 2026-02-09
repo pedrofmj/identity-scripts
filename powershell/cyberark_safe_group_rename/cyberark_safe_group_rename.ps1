@@ -631,7 +631,9 @@ function New-RollbackPs1 {
     $Steps
   )
 
-  $stepsRev = @($Steps) | Sort-Object -Property CreatedAt -Descending
+  # Materialize steps into a plain array (robust for List[object], arrays, pipelines, etc.)
+  $stepsArr = @()
+  foreach ($x in $Steps) { $stepsArr += $x }
 
   $lines = New-Object System.Collections.Generic.List[string]
   $lines.Add('<#')
@@ -677,9 +679,12 @@ function New-RollbackPs1 {
     $lines.Add('')
   }
 
-  foreach ($s in $stepsRev) {
-    $safe = [string]$s.SafeName
-    $mem  = [string]$s.MemberName
+  # Run rollback steps in reverse order (no sorting needed, avoids type compare issues)
+  for ($i = $stepsArr.Count - 1; $i -ge 0; $i--) {
+    $s = $stepsArr[$i]
+
+    $safe   = [string]$s.SafeName
+    $mem    = [string]$s.MemberName
     $action = [string]$s.Action
 
     if ($action -eq "DELETE_NEW") {
@@ -721,6 +726,10 @@ function New-RollbackPs1 {
       $lines.Add("")
       continue
     }
+
+    # Unknown action safety
+    $lines.Add("Write-Host ""ROLLBACK: SKIP unknown action '$action' for member '$mem' safe '$safe'""")
+    $lines.Add("")
   }
 
   return ($lines -join "`n")
