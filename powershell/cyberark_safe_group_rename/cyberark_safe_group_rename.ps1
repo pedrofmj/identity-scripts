@@ -871,6 +871,7 @@ function New-RollbackPs1 {
   return ($lines -join "`n")
 }
 
+
 # ---------------------------
 # Main execution
 # ---------------------------
