@@ -1148,7 +1148,15 @@ if ($EmitRollback) {
       Write-Log INFO "Wrote rollback plan (CSV): $RollbackCsvPath"
     }
 
-    $rb = New-RollbackPs1 -SearchIn $SearchIn -MemberType $MemberType -IncludeInsecureTls ([bool]$RollbackInsecureTls) -Steps $rollbackSteps
+    $rb = New-RollbackPs1 -SearchIn $SearchIn -MemberType $MemberType -IncludeInsecureTls ([bool]$RollbackInsecureTls) -Steps $rollbackSteps `
+      -DefaultAuthType $AuthType `
+      -DefaultConcurrentSession ([bool]$ConcurrentSession) `
+      -DefaultCLIPasswordSDK_Path $CLIPasswordSDK_Path `
+      -DefaultAIM_AppID $AIM_AppID `
+      -DefaultAIM_Safe $AIM_Safe `
+      -DefaultAIM_Object $AIM_Object `
+      -DefaultAIM_Folder $AIM_Folder `
+      -DefaultAIM_Username $AIM_Username
     Set-Content -Path $RollbackPs1Path -Value $rb -Encoding UTF8
     if ($DryRun) {
       Write-Log INFO "Wrote rollback script (PS1) [DRY PLAN]: $RollbackPs1Path"
